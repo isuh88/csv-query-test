@@ -88,6 +88,38 @@ func optimizedSkipLines(reader *bufio.Reader, content io.ReadSeeker, offset int)
 	return nil
 }
 
+// optimizedSkipLinesNoSeek implements optimized line skipping for non-seekable readers
+func optimizedSkipLinesNoSeek(reader *bufio.Reader, offset int) error {
+	if offset == 0 {
+		return nil
+	}
+
+	skipped := 0
+	buf := make([]byte, 4096)
+	for skipped < offset {
+		_, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				return err
+			}
+			return fmt.Errorf("failed to read line: %v", err)
+		}
+		skipped++
+
+		// If we're reading a large chunk that won't be used,
+		// try to skip ahead using the buffer
+		if skipped < offset-100 { // threshold before switching to buffer reading
+			n, err := reader.Read(buf)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("failed to skip lines: %v", err)
+			}
+			newLines := bytes.Count(buf[:n], []byte{'\n'})
+			skipped += newLines
+		}
+	}
+	return nil
+}
+
 func (h *OptimizedHandler) handleCSV(w http.ResponseWriter, r *http.Request) {
 	timer := NewTimeCheck()
 	defer timer.End()
@@ -219,8 +251,8 @@ func (h *FastSkipHandler) handleCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Write([]byte(header))
 
-	// Skip lines using optimized method
-	if err := optimizedSkipLines(reader, content.(io.ReadSeeker), offset); err != nil {
+	// Skip lines using optimized method for non-seekable readers
+	if err := optimizedSkipLinesNoSeek(reader, offset); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
