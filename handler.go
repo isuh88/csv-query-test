@@ -2,9 +2,7 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 )
@@ -17,9 +15,15 @@ func NewHandler(s3Client *S3Client) *Handler {
 	return &Handler{s3Client: s3Client}
 }
 
-func (h *Handler) handleCSV(w http.ResponseWriter, r *http.Request, key string) {
+func (h *Handler) handleCSV(w http.ResponseWriter, r *http.Request) {
 	timer := NewTimeCheck()
 	defer timer.End()
+
+	key := r.URL.Query().Get("file")
+	if key == "" {
+		http.Error(w, "file parameter is required", http.StatusBadRequest)
+		return
+	}
 
 	offset, limit := getOffsetAndLimit(r)
 
@@ -86,28 +90,4 @@ func getOffsetAndLimit(r *http.Request) (offset, limit int) {
 	}
 
 	return offset, limit
-}
-
-func main() {
-	s3Client, err := NewS3Client()
-	if err != nil {
-		log.Fatalf("Failed to create S3 client: %v", err)
-	}
-
-	handler := NewHandler(s3Client)
-
-	http.HandleFunc("/csv/500k", func(w http.ResponseWriter, r *http.Request) {
-		handler.handleCSV(w, r, "customers-500000.csv")
-	})
-	http.HandleFunc("/csv/1m", func(w http.ResponseWriter, r *http.Request) {
-		handler.handleCSV(w, r, "customers-1000000.csv")
-	})
-	http.HandleFunc("/csv/2m", func(w http.ResponseWriter, r *http.Request) {
-		handler.handleCSV(w, r, "customers-2000000.csv")
-	})
-
-	fmt.Println("Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
 }
