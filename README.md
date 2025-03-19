@@ -3,85 +3,95 @@
 ## 목차
 - [프로젝트 구조](#프로젝트-구조)
 - [주요 기능](#주요-기능)
-  - [CSV 파일 조회](#1-csv-파일-조회)
-  - [최적화 전략](#2-최적화-전략)
+  - [CSV 파일 업로드](#1-csv-파일-업로드)
+  - [CSV 파일 조회](#2-csv-파일-조회)
 - [API 엔드포인트](#api-엔드포인트)
-  - [사용 가능한 파일 목록](#사용-가능한-파일-목록)
 - [성능 측정](#성능-측정)
 - [설정](#설정)
-  - [AWS 설정](#aws-설정)
 - [실행 방법](#실행-방법)
 - [사용 예시](#사용-예시)
-- [성능 테스트](#performance-tests)
-  - [테스트 환경](#test-environments)
-  - [테스트 데이터](#test-data)
-  - [테스트 시나리오](#test-scenarios)
 
-이 프로젝트는 S3에 저장된 대용량 CSV 파일을 효율적으로 조회하기 위한 HTTP 서비스입니다. 파일의 특정 부분만을 조회할 수 있도록 페이지네이션을 지원하며, 다양한 최적화 전략을 비교할 수 있도록 구현되어 있습니다.
+이 프로젝트는 대용량 CSV 파일을 효율적으로 업로드하고 조회하기 위한 HTTP 서비스입니다. 다양한 업로드 전략을 지원하며, 세그먼트 단위로 파일을 관리합니다.
 
 ## 프로젝트 구조
 
 ```
 .
-├── main.go              # 서버 진입점 및 라우팅 설정
-├── handler.go           # 기본 핸들러 구현
-├── s3_client.go         # 기본 S3 클라이언트
-├── cached_s3_client.go  # 캐싱이 적용된 S3 클라이언트
-├── optimized_handler.go # 최적화된 핸들러들의 구현
-└── time_check.go       # 성능 측정 유틸리티
+├── main.go           # 서버 진입점 및 라우팅 설정
+├── handler.go        # 조회 핸들러 구현
+├── upload_handler.go # 업로드 핸들러 구현
+├── s3_client.go      # S3 클라이언트
+└── time_check.go    # 성능 측정 유틸리티
 ```
 
 ## 주요 기능
 
-### 1. CSV 파일 조회
-- S3 버킷에서 CSV 파일을 조회
+### 1. CSV 파일 업로드
+4가지 다른 업로드 전략을 제공합니다:
+
+1. **Fine-grained 업로드** (기본)
+   - 세그먼트 단위로 즉시 업로드
+   - 메모리 사용량 최소화
+   - 실시간 진행 상황 모니터링 가능
+
+2. **Coarse-grained 업로드**
+   - 더 큰 세그먼트 단위로 업로드
+   - 네트워크 요청 수 감소
+   - 중간 크기의 메모리 사용
+
+3. **Batch 업로드**
+   - 모든 세그먼트를 메모리에 모았다가 한 번에 업로드
+   - 네트워크 요청 최소화
+   - 높은 메모리 사용량
+
+4. **Stream 업로드** (동시성 지원)
+   - goroutine을 사용한 병렬 업로드
+   - worker 수 동적 설정 가능 (기본값: 4)
+   - 효율적인 리소스 사용과 빠른 업로드 속도
+
+### 2. CSV 파일 조회
+- S3에 저장된 세그먼트 파일 조회
 - offset과 limit을 통한 페이지네이션 지원
-- 파일명을 query parameter로 받아 동적 조회 가능
-
-### 2. 최적화 전략
-
-프로젝트는 5가지 다른 구현을 제공하여 성능을 비교할 수 있습니다:
-
-1. **기본 구현** (`/csv/original`)
-   - 단순한 라인 단위 읽기
-   - 최적화 없음
-
-2. **메모리 캐시 적용** (`/csv/cached`)
-   - S3에서 다운로드한 파일을 메모리에 캐싱
-   - 반복된 요청 시 성능 향상
-   - 메모리 사용량 증가
-
-3. **빠른 스킵** (`/csv/fast-skip`)
-   - 버퍼를 사용한 최적화된 라인 스킵
-   - 큰 offset 값에서 성능 향상
-
-4. **완전 최적화** (`/csv/optimized`)
-   - 메모리 캐싱과 빠른 스킵 모두 적용
-   - 최상의 성능 제공
-
-5. **파일 기반 캐시** (`/csv/file-cached`)
-   - S3에서 다운로드한 파일을 로컬 임시 디렉토리에 저장
-   - 시스템의 파일 캐시를 활용한 I/O 성능 향상
-   - 서버 재시작 시 캐시 초기화
-   - 프로세스 종료 시 자동 정리
+- 세그먼트 단위로 분할된 파일 자동 처리
+- 필요한 세그먼트만 선택적으로 다운로드
 
 ## API 엔드포인트
 
-모든 엔드포인트는 동일한 query parameter를 지원합니다:
+### 업로드 엔드포인트
 
+1. 기본 업로드 (fine-grained):
 ```
-GET /csv/{endpoint}?file={filename}&offset={offset}&limit={limit}
+POST /cht/v1/secure-file/csv/{channelId}/{fileName}
 ```
 
-- `endpoint`: original, cached, fast-skip, optimized, file-cached 중 하나
-- `file`: CSV 파일명 (예: customers-500000.csv)
+2. 테스트용 엔드포인트:
+```
+# Fine-grained upload (1,000 rows/segment)
+POST /test/fine-grained/csv/{channelId}/{fileName}
+
+# Coarse-grained upload (10,000 rows/segment)
+POST /test/coarse-grained/csv/{channelId}/{fileName}
+
+# Batch upload (1,000 rows/segment, uploaded in batch)
+POST /test/batch-upload/csv/{channelId}/{fileName}
+
+# Stream upload with configurable workers
+POST /test/stream-upload/csv/{channelId}/{fileName}?workers={numWorkers}
+```
+
+- `channelId`: 채널 식별자
+- `fileName`: 업로드할 CSV 파일명
+- `workers`: (stream 모드) 동시 업로드 worker 수 (기본값: 4)
+
+### 조회 엔드포인트
+```
+GET /admin/cht/v1/secure-file/csv-upload/csv/{channelId}/{timestamp}?offset={offset}&limit={limit}
+```
+
+- `channelId`: 채널 식별자
+- `timestamp`: 업로드 시간 (형식: YYYY-MM-DD-HH-mm-ss)
 - `offset`: 건너뛸 라인 수 (기본값: 0)
-- `limit`: 반환할 라인 수 (기본값: 100)
-
-### 사용 가능한 파일 목록
-- customers-500000.csv
-- customers-1000000.csv
-- customers-2000000.csv
+- `limit`: 반환할 라인 수 (기본값: 100, 최대: 1000)
 
 ## 성능 측정
 
@@ -89,13 +99,17 @@ GET /csv/{endpoint}?file={filename}&offset={offset}&limit={limit}
 - 요청 시작 시간
 - 요청 완료 시간
 - 총 소요 시간
+- 세그먼트별 처리 통계 (업로드 모드)
+  - 처리된 행 수
+  - 데이터 크기
+  - 업로드 속도 (MB/s)
 
 ## 설정
 
 ### AWS 설정
 - 리전: ap-northeast-2
 - 프로파일: ch-dev
-- 버킷: bin-secure.exp.channel.io
+- 버킷: bin.exp.channel.io
 
 ## 실행 방법
 
@@ -108,17 +122,14 @@ go run .
 ## 사용 예시
 
 ```bash
-# 기본 구현
-curl "http://localhost:8080/csv/original?file=customers-500000.csv&offset=1000&limit=10"
+# Fine-grained upload
+curl -X POST -T "data.csv" "http://localhost:8080/cht/v1/secure-file/csv/1/data.csv"
 
-# 캐시 사용
-curl "http://localhost:8080/csv/cached?file=customers-500000.csv&offset=1000&limit=10"
+# Stream upload with 8 workers
+curl -X POST -T "data.csv" "http://localhost:8080/test/stream-upload/csv/1/data.csv?workers=8"
 
-# 빠른 스킵
-curl "http://localhost:8080/csv/fast-skip?file=customers-500000.csv&offset=1000&limit=10"
-
-# 모든 최적화 적용
-curl "http://localhost:8080/csv/optimized?file=customers-500000.csv&offset=1000&limit=10"
+# Query uploaded file
+curl "http://localhost:8080/admin/cht/v1/secure-file/csv-upload/csv/1/2024-03-19-10-45-09?offset=0&limit=100"
 ```
 
 ## Performance Tests
