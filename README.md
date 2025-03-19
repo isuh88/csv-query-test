@@ -40,23 +40,30 @@
 
 ### 2. 최적화 전략
 
-프로젝트는 4가지 다른 구현을 제공하여 성능을 비교할 수 있습니다:
+프로젝트는 5가지 다른 구현을 제공하여 성능을 비교할 수 있습니다:
 
 1. **기본 구현** (`/csv/original`)
    - 단순한 라인 단위 읽기
    - 최적화 없음
 
-2. **캐시 적용** (`/csv/cached`)
+2. **메모리 캐시 적용** (`/csv/cached`)
    - S3에서 다운로드한 파일을 메모리에 캐싱
    - 반복된 요청 시 성능 향상
+   - 메모리 사용량 증가
 
 3. **빠른 스킵** (`/csv/fast-skip`)
    - 버퍼를 사용한 최적화된 라인 스킵
    - 큰 offset 값에서 성능 향상
 
 4. **완전 최적화** (`/csv/optimized`)
-   - 캐싱과 빠른 스킵 모두 적용
+   - 메모리 캐싱과 빠른 스킵 모두 적용
    - 최상의 성능 제공
+
+5. **파일 기반 캐시** (`/csv/file-cached`)
+   - S3에서 다운로드한 파일을 로컬 임시 디렉토리에 저장
+   - 시스템의 파일 캐시를 활용한 I/O 성능 향상
+   - 서버 재시작 시 캐시 초기화
+   - 프로세스 종료 시 자동 정리
 
 ## API 엔드포인트
 
@@ -66,7 +73,7 @@
 GET /csv/{endpoint}?file={filename}&offset={offset}&limit={limit}
 ```
 
-- `endpoint`: original, cached, fast-skip, optimized 중 하나
+- `endpoint`: original, cached, fast-skip, optimized, file-cached 중 하나
 - `file`: CSV 파일명 (예: customers-500000.csv)
 - `offset`: 건너뛸 라인 수 (기본값: 0)
 - `limit`: 반환할 라인 수 (기본값: 100)
