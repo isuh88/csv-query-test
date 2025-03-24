@@ -72,6 +72,8 @@ func (h *QueryHandler) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	// Create CSV reader
 	csvReader := csv.NewReader(content)
 
+	// csvReader.FieldsPerRecord = -1
+
 	// Read header
 	header, err := csvReader.Read()
 	if err != nil {

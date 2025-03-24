@@ -110,6 +110,9 @@ func (h *UploadHandler) HandleUploadWithConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Set the number of expected fields per record -> 테스트 필요
+	// reader.FieldsPerRecord = -1
+
 	var segmentCount int
 	if config.UploadMode == UploadModeStream {
 		err = h.handleStreamUpload(basePath, csvHeader, reader, config)

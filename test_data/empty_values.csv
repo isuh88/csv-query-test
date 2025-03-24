@@ -1,0 +1,7 @@
+memberId,name,email,mobileNumber,age,address
+1001,John Doe,,+1-555-0101,30,123 Main St
+1002,,jane@example.com,+1-555-0102,,456 Oak Ave
+1003,Bob Wilson,bob@example.com,,45,789 Pine Rd
+1004,   ,alice@example.com,+1-555-0104,35,   
+1005,Charlie Davis,NULL,+1-555-0105,0,
+1006, ,charlie@example.com, ,25,null 

@@ -45,10 +45,10 @@ func main() {
 	uploadHandler := NewUploadHandler(s3Client)
 
 	// Default upload endpoint (fine-grained)
-	mux.HandleFunc("/cht/v1/secure-file/csv/", func(w http.ResponseWriter, r *http.Request) {
-		channelId, fileName, ok := extractPathParams("/cht/v1/secure-file/csv/", r.URL.Path)
+	mux.HandleFunc("/cht/v1/file/csv/", func(w http.ResponseWriter, r *http.Request) {
+		channelId, fileName, ok := extractPathParams("/cht/v1/file/csv/", r.URL.Path)
 		if !ok {
-			http.Error(w, "Invalid path format. Expected: /cht/v1/secure-file/csv/{channelId}/{fileName}", http.StatusBadRequest)
+			http.Error(w, "Invalid path format. Expected: /cht/v1/file/csv/{channelId}/{fileName}", http.StatusBadRequest)
 			return
 		}
 		ctx := context.WithValue(r.Context(), channelIDKey, channelId)
@@ -129,8 +129,8 @@ func main() {
 
 	// Query handler
 	queryHandler := NewQueryHandler(s3Client)
-	mux.HandleFunc("/admin/cht/v1/secure-file/csv-upload/", func(w http.ResponseWriter, r *http.Request) {
-		prefix := "/admin/cht/v1/secure-file/csv-upload/"
+	mux.HandleFunc("/admin/cht/v1/file/csv-upload/", func(w http.ResponseWriter, r *http.Request) {
+		prefix := "/admin/cht/v1/file/csv-upload/"
 		if key := strings.TrimPrefix(r.URL.Path, prefix); key != "" {
 			r = r.WithContext(r.Context())
 			r.URL.Path = "/" + key
@@ -143,7 +143,7 @@ func main() {
 	fmt.Println("Server starting on :8080...")
 	fmt.Println("\nAvailable endpoints:")
 	fmt.Println("1. Default Upload (fine-grained):")
-	fmt.Println("   POST /cht/v1/secure-file/csv/{channelId}/{fileName}")
+	fmt.Println("   POST /cht/v1/file/csv/{channelId}/{fileName}")
 	fmt.Println("\n2. Test Endpoints:")
 	fmt.Println("   a) Fine-grained upload (1,000 rows/segment):")
 	fmt.Println("      POST /test/fine-grained/csv/{channelId}/{fileName}")
@@ -154,8 +154,8 @@ func main() {
 	fmt.Println("   d) Stream upload (1,000 rows/segment, concurrent streaming):")
 	fmt.Println("      POST /test/stream-upload/csv/{channelId}/{fileName}")
 	fmt.Println("\n3. Query CSV segments:")
-	fmt.Println("   GET /admin/cht/v1/secure-file/csv-upload/csv/{channelId}/{timestamp}")
-	fmt.Println("   Example: /admin/cht/v1/secure-file/csv-upload/csv/1/2025-03-19-10-45-09")
+	fmt.Println("   GET /admin/cht/v1/file/csv-upload/csv/{channelId}/{timestamp}")
+	fmt.Println("   Example: /admin/cht/v1/file/csv-upload/csv/1/2025-03-19-10-45-09")
 
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
