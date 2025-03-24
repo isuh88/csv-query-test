@@ -1,0 +1,6 @@
+name,age,address,joinDate,status
+John Doe,30,123 Main St,2024-01-01,active
+Jane Smith,25,456 Oak Ave,2024-01-02,active
+Bob Wilson,45,789 Pine Rd,2024-01-03,inactive
+Alice Brown,35,321 Elm St,2024-01-04,active
+Charlie Davis,28,654 Maple Dr,2024-01-05,active 
